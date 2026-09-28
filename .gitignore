@@ -1,0 +1,6 @@
+# Secrets
+.env
+
+# App config/state: API keys, qBittorrent credentials, Sonarr/Radarr/Bazarr
+# databases, Caddy's internal TLS/state — none of this belongs in git.
+config/

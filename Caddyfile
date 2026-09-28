@@ -1,0 +1,33 @@
+# Reverse proxy config for the ARR stack.
+# Routes *.arrhost.local (browser-facing, port 80) to the right container.
+# These are internal/non-public names, so automatic HTTPS/ACME is disabled —
+# everything here is plain HTTP on the local network.
+{
+	auto_https off
+}
+
+sonarr.arrhost.local:80 {
+	reverse_proxy sonarr:8989
+}
+
+radarr.arrhost.local:80 {
+	reverse_proxy radarr:7878
+}
+
+prowlarr.arrhost.local:80 {
+	reverse_proxy prowlarr:9696
+}
+
+bazarr.arrhost.local:80 {
+	reverse_proxy bazarr:6767
+}
+
+jellyfin.arrhost.local:80 {
+	reverse_proxy jellyfin:8096
+}
+
+# qBittorrent shares gluetun's network namespace (it has no network of its
+# own), so it's reached through the gluetun container name.
+qbittorrent.arrhost.local:80 {
+	reverse_proxy gluetun:8080
+}
