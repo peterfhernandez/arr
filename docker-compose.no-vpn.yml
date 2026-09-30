@@ -1,0 +1,124 @@
+# ARR stack for Docker Desktop on Windows 11 Home — WITHOUT VPN
+# Repo + config location: G:\coderepo\arr        (this file, Caddyfile, and
+#                                                  per-app config under .\config\)
+# Data location:          D:\arr                  (downloads, media — needs the free space)
+#
+# Bring up: docker compose -f docker-compose.no-vpn.yml up -d
+# Logs:     docker compose -f docker-compose.no-vpn.yml logs -f <service>
+# Stop:     docker compose -f docker-compose.no-vpn.yml down
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+      - WEBUI_PORT=8080
+    volumes:
+      - ./config/qbittorrent:/config
+      - D:/arr/downloads:/downloads
+    ports:
+      # qBittorrent WebUI
+      - "9090:8080"
+      # qBittorrent torrent port (adjust if you change it in qBittorrent)
+      - "6881:6881"
+      - "6881:6881/udp"
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+    volumes:
+      - ./config/prowlarr:/config
+    ports:
+      - "9696:9696"
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+    volumes:
+      - ./config/sonarr:/config
+      - D:/arr/downloads:/downloads
+      - D:/arr/media/tv:/tv
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+    volumes:
+      - ./config/radarr:/config
+      - D:/arr/downloads:/downloads
+      - D:/arr/media/movies:/movies
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+    volumes:
+      - ./config/bazarr:/config
+      - D:/arr/media/movies:/movies
+      - D:/arr/media/tv:/tv
+    ports:
+      - "6767:6767"
+    restart: unless-stopped
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+    volumes:
+      - ./config/jellyfin:/config
+      - D:/arr/media/movies:/data/movies
+      - D:/arr/media/tv:/data/tvshows
+    ports:
+      - "8096:8096"
+      # - "8920:8920"   # uncomment for HTTPS
+      # - "7359:7359/udp" # uncomment for auto-discovery
+      # - "1900:1900/udp" # uncomment for DLNA
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    # Reverse proxy: routes *.arrhost.local (see Caddyfile) to the right
+    # container. Requires hosts-file entries for each subdomain — see HOWTO.md.
+    depends_on:
+      - qbittorrent
+      - prowlarr
+      - sonarr
+      - radarr
+      - bazarr
+      - jellyfin
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./config/caddy/data:/data
+      - ./config/caddy/config:/config
+    restart: unless-stopped
