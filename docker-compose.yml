@@ -17,11 +17,17 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=${TZ}
-      # VPN Provider settings — fill these in:
-      # - VPN=wireguard
-      # - WIREGUARD_PRIVATE_KEY=your_key_here
-      # - SERVER_COUNTRIES=your_country_here
-      # SOCKS5 proxy for qBittorrent
+      # VPN Provider and type from .env
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER}
+      - VPN_TYPE=${VPN_TYPE}
+      # Custom OpenVPN configuration file path
+      - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf
+      # OpenVPN credentials from .env
+      - OPENVPN_USER=${OPENVPN_USER}
+      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
+      # Optional: restrict exit servers to specific countries
+      - VPN_SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES}
+      # HTTP control port for health checks
       - HTTPCONTROL=8000
     volumes:
       - ./config/gluetun:/gluetun
