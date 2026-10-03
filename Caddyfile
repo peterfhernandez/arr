@@ -29,5 +29,5 @@ jellyfin.arrhost.local:80 {
 # qBittorrent shares gluetun's network namespace (it has no network of its
 # own), so it's reached through the gluetun container name.
 qbittorrent.arrhost.local:80 {
-	reverse_proxy gluetun:8080
+	reverse_proxy qbittorrent:8080
 }

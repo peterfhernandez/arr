@@ -283,8 +283,23 @@ home IP. Do this once after every setup change to gluetun.
 ### 6. Configure Prowlarr (indexers)
 
 1. Open http://prowlarr.arrhost.local
-2. Add your indexers (Settings → Indexers)
-3. Add Sonarr and Radarr as "Apps" (Settings → Apps) so Prowlarr can push
+2. Set up FlareSolverr proxy (for Cloudflare-protected indexers)
+   Some indexers like 1337x are behind Cloudflare's anti-bot protection. To access them,
+   Prowlarr needs to route requests through FlareSolverr (already running in the stack).
+   
+   * Navigate to Settings → Indexers → Proxy Settings
+   * Click "Add" to create a new proxy
+   * Set:
+     - Name: `FlareSolverr`
+     - Host: `flaresolverr`
+     - Port: `8191`
+     - Tags: (optional — helps organize which indexers use this proxy)
+   * Click "Save"
+   * Optional: click the test icon to verify the connection
+3. Add your indexers (Settings → Indexers)
+   When adding an indexer that's behind Cloudflare (like 1337x), select FlareSolverr
+   as the proxy in the indexer's settings.
+4. Add Sonarr and Radarr as "Apps" (Settings → Apps) so Prowlarr can push
    indexers to them automatically — you'll need each app's URL
    (`http://sonarr:8989`, `http://radarr:7878` — container names work as
    hostnames on the shared Docker network) and API key (found in each app's
@@ -294,12 +309,14 @@ home IP. Do this once after every setup change to gluetun.
 
 1. Open http://sonarr.arrhost.local (Sonarr) and http://radarr.arrhost.local (Radarr)
 2. Settings → Download Clients → add qBittorrent
-   - Host: `gluetun` (qBittorrent shares gluetun's network namespace, so you
-     reach it via gluetun's container name)
-   - Port: `8080`
-3. Settings → Media Management → confirm root folders point at `/tv` (Sonarr)
-   or `/movies` (Radarr) — these map to `D:\arr\media\tv` and
-   `D:\arr\media\movies` per the compose file.
+   * **Without VPN mode:**
+     - Host: `qbittorrent`
+     - Port: `8080`
+   * **With VPN mode** (when running with `--profile vpn`):
+     - Host: `gluetun`
+     - Port: `8080`
+     - Requires `QBIT_NETWORK_MODE=service:gluetun` in `.env`
+3. Settings → Media Management → confirm root folders point at `/tv` (Sonarr) or `/movies` (Radarr) — these map to `D:\arr\media\tv` and `D:\arr\media\movies` per the compose file.
 4. Indexers should already be populated by Prowlarr if step 5 worked.
 
 ### 8. Configure Bazarr

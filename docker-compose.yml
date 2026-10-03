@@ -1,59 +1,47 @@
-# ARR stack for Docker Desktop on Windows 11 Home
+# ARR stack for Docker Desktop on Windows 11 Home — WITH VPN PROFILE TOGGLE
 # Repo + config location: G:\coderepo\arr        (this file, Caddyfile, and
 #                                                  per-app config under .\config\)
 # Data location:          D:\arr                  (downloads, media — needs the free space)
 #
-# Bring up: docker compose up -d
-# Logs:     docker compose logs -f <service>
-# Stop:     docker compose down
+# Run WITHOUT VPN:  docker compose up -d
+# Run WITH VPN:     docker compose --profile vpn up -d
+# Stop:             docker compose down
+# Logs:             docker compose logs -f <service>
 
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
     container_name: gluetun
+    profiles: ["vpn"]  # Only starts with --profile vpn
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+      # VPN Provider settings — fill these in:
+      # - VPN=wireguard
+      # - WIREGUARD_PRIVATE_KEY=your_key_here
+      # - SERVER_COUNTRIES=your_country_here
+      # SOCKS5 proxy for qBittorrent
+      - HTTPCONTROL=8000
+    volumes:
+      - ./config/gluetun:/gluetun
+    ports:
+      - "8080:8080"  # HTTP proxy port
+      - "1080:1080"  # SOCKS5 proxy port (for qBittorrent)
     cap_add:
       - NET_ADMIN
     devices:
-      - /dev/net/tun:/dev/net/tun
-    environment:
-      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER}
-      - VPN_TYPE=${VPN_TYPE}
-      - OPENVPN_USER=${OPENVPN_USER}
-      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
-      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
-      # Must be empty (VPN_SERVER_COUNTRIES= in .env) when
-      # VPN_SERVICE_PROVIDER=custom — gluetun errors at startup otherwise
-      # ("the country specified is not valid"), since custom mode has no
-      # server list to filter.
-      - SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES}
-      # Only used when VPN_SERVICE_PROVIDER=custom (see HOWTO.md step 2a) —
-      # points gluetun at your provider-supplied .ovpn file directly,
-      # instead of gluetun's own built-in server list, which can point at
-      # a different server infrastructure than your cert/credentials are
-      # actually valid for.
-      - OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf
-      - TZ=${TZ}
-    ports:
-      # qBittorrent WebUI, published through gluetun's network namespace.
-      # Host side moved off 8080 (already used by the wordpress-fleet
-      # project's k3d-wp-fleet-dev-serverlb container) to 9090 — this only
-      # affects direct http://<host>:9090 access; the
-      # qbittorrent.arrhost.local route via Caddy is unaffected, since
-      # Caddy reaches gluetun:8080 over the internal Docker network.
-      - "9090:8080"
-      # qBittorrent torrent port (adjust if you change it in qBittorrent)
-      - "6881:6881"
-      - "6881:6881/udp"
-    volumes:
-      - ./config/gluetun:/gluetun
+      - /dev/net/tun
+    healthcheck:
+      test: curl -f http://localhost:8000/v1/openvpn/status || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
-    network_mode: "service:gluetun"
-    depends_on:
-      - gluetun
     environment:
       - PUID=1000
       - PGID=1000
@@ -62,6 +50,12 @@ services:
     volumes:
       - ./config/qbittorrent:/config
       - D:/arr/downloads:/downloads
+    ports:
+      # qBittorrent WebUI
+      - "9090:8080"
+      # qBittorrent torrent port (adjust if you change it in qBittorrent)
+      - "6881:6881"
+      - "6881:6881/udp"
     restart: unless-stopped
 
   prowlarr:
@@ -75,6 +69,18 @@ services:
       - ./config/prowlarr:/config
     ports:
       - "9696:9696"
+    depends_on:
+      - flaresolverr
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=info
+      - TIMEOUT=30000
+    ports:
+      - "8191:8191"
     restart: unless-stopped
 
   sonarr:
@@ -90,6 +96,8 @@ services:
       - D:/arr/media/tv:/tv
     ports:
       - "8989:8989"
+    depends_on:
+      - qbittorrent
     restart: unless-stopped
 
   radarr:
@@ -105,6 +113,8 @@ services:
       - D:/arr/media/movies:/movies
     ports:
       - "7878:7878"
+    depends_on:
+      - qbittorrent
     restart: unless-stopped
 
   bazarr:
@@ -136,8 +146,8 @@ services:
     ports:
       - "8096:8096"
       # - "8920:8920"   # uncomment for HTTPS
-      # - "7359:7359/udp" # uncomment for auto-discovery
-      # - "1900:1900/udp" # uncomment for DLNA
+      - "7359:7359/udp" # uncomment for auto-discovery
+      - "1900:1900/udp" # uncomment for DLNA
     restart: unless-stopped
 
   caddy:
@@ -146,7 +156,7 @@ services:
     # Reverse proxy: routes *.arrhost.local (see Caddyfile) to the right
     # container. Requires hosts-file entries for each subdomain — see HOWTO.md.
     depends_on:
-      - gluetun
+      - qbittorrent
       - prowlarr
       - sonarr
       - radarr
